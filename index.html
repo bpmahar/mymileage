@@ -17,18 +17,37 @@ body { font-family: Arial; background:#f4f6f8; padding:10px; }
 .container { background:#fff; padding:15px; border-radius:8px; max-width:480px; margin:auto; }
 h2,h3 { text-align:center; }
 label { font-weight:bold; margin-top:10px; display:block; }
+
 input, select, textarea, button {
   width:100%; padding:9px; margin-top:5px; font-size:15px;
 }
-input[readonly] { background:#eee; }
+input[readonly] {
+  background:#eef3ff;
+  font-weight:bold;
+  text-align:center;
+}
+
 .row { display:flex; gap:6px; }
 .row input, .row select, .row button { flex:1; }
-button { background:#007bff; color:#fff; border:none; border-radius:5px; }
+
+button {
+  background:#007bff; color:#fff; border:none;
+  border-radius:5px; margin-top:12px;
+}
 button:disabled { background:#999; }
-table { width:100%; font-size:13px; margin-top:10px; border-collapse:collapse; }
-th, td { border:1px solid #ccc; padding:5px; text-align:center; }
-.alert { background:#ffe6e6; padding:8px; border-radius:5px; margin-bottom:10px; color:#900; text-align:center; }
-.km-box { background:#eef3ff; padding:8px; border-radius:6px; text-align:center; font-weight:bold; margin-top:10px; }
+
+table {
+  width:100%; font-size:13px; margin-top:10px;
+  border-collapse:collapse;
+}
+th, td {
+  border:1px solid #ccc; padding:5px; text-align:center;
+}
+
+.alert {
+  background:#ffe6e6; padding:8px; border-radius:5px;
+  margin-bottom:10px; color:#900; text-align:center;
+}
 </style>
 </head>
 
@@ -58,13 +77,13 @@ th, td { border:1px solid #ccc; padding:5px; text-align:center; }
   <input type="number" id="endOdo" placeholder="End Odo">
 </div>
 
-<!-- Running KM -->
-<div class="km-box" id="runningKm">
-Day: 0 KM | Month: 0 KM
+<!-- TOTAL RUNNING KMS (SINGLE ROW) -->
+<label>Total Running KMs</label>
+<div class="row">
+  <input type="text" id="tripKm" readonly placeholder="Trip KM">
+  <input type="text" id="dayKm" readonly placeholder="Day KM">
+  <input type="text" id="monthKm" readonly placeholder="Month KM">
 </div>
-
-<label>Total KM</label>
-<input type="number" id="totalKm" readonly>
 
 <label>Day Plan / Visits *</label>
 <textarea id="dayPlan" rows="2"></textarea>
@@ -119,15 +138,16 @@ if (visits.find(v => v.date===yDate && !v.endOdo)) {
 
 /* ================= INIT ================= */
 startOdo.value = localStorage.getItem("lastEndOdo") || "";
+
 if (todayVisit) {
   startOdo.value = todayVisit.startOdo;
   endOdo.value = todayVisit.endOdo || "";
-  totalKm.value = todayVisit.totalKm || "";
   dayPlan.value = todayVisit.dayPlan;
 }
+
 updateButton();
 updateTable();
-updateRunningKm();
+updateRunningKms();
 
 /* ================= BUTTON STATE ================= */
 function updateButton() {
@@ -147,7 +167,7 @@ function handleVisit() {
     alert("Allow GPS location"); captureGPS(); return;
   }
 
-  /* START */
+  /* START VISIT */
   if (!todayVisit) {
     if (!startOdo.value) { alert("Enter Start Odometer"); return; }
 
@@ -165,12 +185,13 @@ function handleVisit() {
       endLng:"",
       totalKm:""
     };
+
     visits.push(todayVisit);
     localStorage.setItem("visits", JSON.stringify(visits));
     alert("Start Visit saved");
   }
 
-  /* END */
+  /* END VISIT */
   else if (!todayVisit.endOdo) {
     if (!endOdo.value) { alert("Enter End Odometer"); return; }
     if (Number(endOdo.value) <= todayVisit.startOdo) {
@@ -183,7 +204,6 @@ function handleVisit() {
     todayVisit.endLng = gpsLng;
     todayVisit.totalKm = todayVisit.endOdo - todayVisit.startOdo;
 
-    totalKm.value = todayVisit.totalKm;
     localStorage.setItem("lastEndOdo", todayVisit.endOdo);
     localStorage.setItem("visits", JSON.stringify(visits));
     alert("End Visit saved");
@@ -191,7 +211,7 @@ function handleVisit() {
 
   updateButton();
   updateTable();
-  updateRunningKm();
+  updateRunningKms();
 }
 
 /* ================= TABLE ================= */
@@ -202,27 +222,30 @@ function updateTable() {
     let map = (v.startLat && v.endLat)
       ? `<a href="https://www.google.com/maps/dir/${v.startLat},${v.startLng}/${v.endLat},${v.endLng}" target="_blank">Route</a>`
       : "-";
-    t.innerHTML += `<tr>
-      <td>${v.date}</td>
-      <td>${v.visitType}</td>
-      <td>${v.totalKm || "-"}</td>
-      <td>${map}</td>
-    </tr>`;
+    t.innerHTML += `
+      <tr>
+        <td>${v.date}</td>
+        <td>${v.visitType}</td>
+        <td>${v.totalKm || "-"}</td>
+        <td>${map}</td>
+      </tr>`;
   });
 }
 
-/* ================= RUNNING KM ================= */
-function updateRunningKm() {
-  let dayKm = 0, monthKm = 0;
-  let month = today.slice(0,7);
+/* ================= TOTAL RUNNING KMS ================= */
+function updateRunningKms() {
+  let trip = todayVisit && todayVisit.totalKm ? todayVisit.totalKm : 0;
+  let day = 0, month = 0;
+  let m = today.slice(0,7);
 
   visits.forEach(v=>{
-    if (v.date === today && v.totalKm) dayKm += Number(v.totalKm);
-    if (v.date.startsWith(month) && v.totalKm) monthKm += Number(v.totalKm);
+    if (v.date === today && v.totalKm) day += Number(v.totalKm);
+    if (v.date.startsWith(m) && v.totalKm) month += Number(v.totalKm);
   });
 
-  document.getElementById("runningKm").innerText =
-    `Day: ${dayKm} KM | Month: ${monthKm} KM`;
+  tripKm.value = `Trip: ${trip} KM`;
+  dayKm.value = `Day: ${day} KM`;
+  monthKm.value = `Month: ${month} KM`;
 }
 
 /* ================= EXPORT ================= */
