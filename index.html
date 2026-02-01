@@ -110,6 +110,13 @@ th, td {
 <label>Day Plan / Visits *</label>
 <textarea id="dayPlan" rows="2" placeholder="Planned / visited customers or locations"></textarea>
 
+<label>GPS Location</label>
+<div class="row">
+  <input type="text" id="latitude" readonly placeholder="Latitude">
+  <input type="text" id="longitude" readonly placeholder="Longitude">
+</div>
+<button type="button" onclick="getLocation()">Capture GPS</button>
+
 <label>Upload Picture (Optional)</label>
 <input type="file" accept="image/*">
 
@@ -182,10 +189,16 @@ function calculateRunningKm(data) {
 /* ---------------- SAVE ---------------- */
 function saveVisit() {
 
+if (!latitude.value || !longitude.value) {
+  alert("Please capture GPS location");
+  return;
+}
+
   if (!visitDate.value) {
     alert("Visit Date is mandatory");
     return;
   }
+
 
   if (!dayPlan.value.trim()) {
     alert("Day Plan / Visits is mandatory");
@@ -203,13 +216,16 @@ function saveVisit() {
   }
 
   let data = {
-    date: visitDate.value,
-    visitType: visitType.value,
-    startOdo: Number(startOdo.value),
-    endOdo: Number(endOdo.value),
-    totalKm: Number(totalKm.value),
-    dayPlan: dayPlan.value
-  };
+  date: visitDate.value,
+  visitType: visitType.value,
+  startOdo: Number(startOdo.value),
+  endOdo: Number(endOdo.value),
+  totalKm: Number(totalKm.value),
+  dayPlan: dayPlan.value,
+  latitude: latitude.value,
+  longitude: longitude.value
+};
+
 
   if (editIndex !== null) {
     visits[editIndex] = data;
@@ -265,6 +281,9 @@ function editVisit(i) {
   dayPlan.value = v.dayPlan;
   editIndex = i;
   liveCalc();
+latitude.value = v.latitude || "";
+longitude.value = v.longitude || "";
+
 }
 
 /* ---------------- EXPORT ---------------- */
@@ -274,12 +293,12 @@ function exportData() {
     return;
   }
 
-  let csv = "Date,Type,Start,End,KM,Day Plan / Visits\n";
+let csv = "Date,Type,Start,End,KM,Day Plan / Visits,Latitude,Longitude\n";
 
   visits
     .filter(v => v.date >= fromDate.value && v.date <= toDate.value)
     .forEach(v => {
-      csv += `${v.date},${v.visitType},${v.startOdo},${v.endOdo},${v.totalKm},"${v.dayPlan}"\n`;
+csv += `${v.date},${v.visitType},${v.startOdo},${v.endOdo},${v.totalKm},"${v.dayPlan}",${v.latitude},${v.longitude}\n`;
     });
 
   let blob = new Blob([csv], { type: "text/csv" });
@@ -295,8 +314,35 @@ if ("serviceWorker" in navigator) {
 }
 
 /* INIT */
+
+// Auto capture GPS on load
+setTimeout(getLocation, 1000);
+
 updateTable();
 calculateRunningKm(visits);
+
+function getLocation() {
+  if (!navigator.geolocation) {
+    alert("GPS not supported on this device");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      latitude.value = position.coords.latitude.toFixed(6);
+      longitude.value = position.coords.longitude.toFixed(6);
+    },
+    error => {
+      alert("Unable to fetch GPS location. Please allow location access.");
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
+}
+
 </script>
 
 </body>
