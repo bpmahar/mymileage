@@ -9,72 +9,26 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#007bff">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="My Mileage">
 <link rel="apple-touch-icon" href="icon.png">
 
 <style>
-body {
-  font-family: Arial, sans-serif;
-  background: #f4f6f8;
-  padding: 10px;
-}
-.container {
-  background: #fff;
-  padding: 15px;
-  border-radius: 8px;
-  max-width: 480px;
-  margin: auto;
-}
-h2 {
-  text-align: center;
-  margin-bottom: 10px;
-}
-label {
-  font-weight: bold;
-  margin-top: 10px;
-  display: block;
-}
+body { font-family: Arial; background:#f4f6f8; padding:10px; }
+.container { background:#fff; padding:15px; border-radius:8px; max-width:480px; margin:auto; }
+h2,h3 { text-align:center; }
+label { font-weight:bold; margin-top:10px; display:block; }
 input, select, textarea, button {
-  width: 100%;
-  padding: 9px;
-  margin-top: 5px;
-  font-size: 15px;
+  width:100%; padding:9px; margin-top:5px; font-size:15px;
 }
-input[readonly] {
-  background: #eee;
-}
-.row {
-  display: flex;
-  gap: 6px;
-}
-.row input, .row select {
-  flex: 1;
-  text-align: center;
-  font-weight: bold;
-}
-button {
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  margin-top: 12px;
-}
-table {
-  width: 100%;
-  font-size: 13px;
-  margin-top: 10px;
-  border-collapse: collapse;
-}
-th, td {
-  border: 1px solid #ccc;
-  padding: 5px;
-  text-align: center;
-}
-.small-btn {
-  font-size: 12px;
-  padding: 4px 6px;
-}
+input[readonly] { background:#eee; }
+.row { display:flex; gap:6px; }
+.row input, .row select, .row button { flex:1; }
+button { background:#007bff; color:#fff; border:none; border-radius:5px; }
+button:disabled { background:#999; }
+table { width:100%; font-size:13px; margin-top:10px; border-collapse:collapse; }
+th, td { border:1px solid #ccc; padding:5px; text-align:center; }
+.alert { background:#ffe6e6; padding:8px; border-radius:5px; margin-bottom:10px; color:#900; text-align:center; }
+.km-box { background:#eef3ff; padding:8px; border-radius:6px; text-align:center; font-weight:bold; margin-top:10px; }
 </style>
 </head>
 
@@ -83,266 +37,215 @@ th, td {
 <div class="container">
 <h2>My Mileage</h2>
 
-<!-- Visit Date + Visit Type (Same Row) -->
-<label>Visit Details *</label>
+<div id="missedAlert" class="alert" style="display:none;">
+⚠️ Yesterday's visit was not ended. Please complete it.
+</div>
+
+<!-- Visit details -->
+<label>Visit Details</label>
 <div class="row">
-  <input type="date" id="visitDate" required>
+  <input type="date" id="visitDate" readonly>
   <select id="visitType">
     <option>Official</option>
     <option>Personal</option>
   </select>
 </div>
 
+<!-- Odometer -->
 <label>Odometer Readings</label>
 <div class="row">
-  <input type="number" id="startOdo" placeholder="Start Odometer">
-  <input type="number" id="endOdo" placeholder="End Odometer">
+  <input type="number" id="startOdo" placeholder="Start Odo">
+  <input type="number" id="endOdo" placeholder="End Odo">
 </div>
 
-<label>Total / Running KM</label>
-<div class="row">
-  <input type="number" id="totalKm" readonly placeholder="Trip KM">
-  <input type="text" id="todayKm" readonly placeholder="Today KM">
-  <input type="text" id="monthKm" readonly placeholder="Month KM">
+<!-- Running KM -->
+<div class="km-box" id="runningKm">
+Day: 0 KM | Month: 0 KM
 </div>
 
-<!-- Day Plan / Visits (Mandatory) -->
+<label>Total KM</label>
+<input type="number" id="totalKm" readonly>
+
 <label>Day Plan / Visits *</label>
-<textarea id="dayPlan" rows="2" placeholder="Planned / visited customers or locations"></textarea>
+<textarea id="dayPlan" rows="2"></textarea>
 
-<label>GPS Location</label>
-<div class="row">
-  <input type="text" id="latitude" readonly placeholder="Latitude">
-  <input type="text" id="longitude" readonly placeholder="Longitude">
-</div>
-<button type="button" onclick="getLocation()">Capture GPS</button>
-
-<label>Upload Picture (Optional)</label>
-<input type="file" accept="image/*">
-
-<button onclick="saveVisit()">Save Visit</button>
+<button id="actionBtn" onclick="handleVisit()">Start Visit</button>
 
 <hr>
 
-<h3>Saved Visits</h3>
+<h3>Daily Summary</h3>
 <table id="dataTable">
-<tr>
-<th>Date</th>
-<th>Type</th>
-<th>KM</th>
-<th>Edit</th>
-</tr>
+<tr><th>Date</th><th>Type</th><th>KM</th><th>Map</th></tr>
 </table>
 
 <hr>
 
-<h3>Export Data</h3>
-<input type="date" id="fromDate">
-<input type="date" id="toDate">
-<button onclick="exportData()">Export CSV</button>
+<h3>Export CSV / Excel</h3>
+<div class="row">
+  <input type="date" id="fromDate">
+  <input type="date" id="toDate">
+  <button onclick="exportCSV()">Export</button>
+</div>
 
 </div>
 
 <script>
-/* ---------------- DATA ---------------- */
+/* ================= DATA ================= */
 let visits = JSON.parse(localStorage.getItem("visits")) || [];
-let editIndex = null;
+const today = new Date().toISOString().split("T")[0];
+visitDate.value = today;
 
-/* Default date = today */
-const todayStr = new Date().toISOString().split("T")[0];
-visitDate.value = todayStr;
+let todayVisit = visits.find(v => v.date === today) || null;
 
-/* Load last end odometer */
-startOdo.value = localStorage.getItem("lastEndOdo") || "";
-
-/* ---------------- LIVE CALC ---------------- */
-endOdo.addEventListener("input", liveCalc);
-visitDate.addEventListener("change", liveCalc);
-
-function liveCalc() {
-  let s = Number(startOdo.value);
-  let e = Number(endOdo.value);
-
-  totalKm.value = (e > s) ? (e - s) : "";
-
-  let temp = [...visits];
-  if (visitDate.value && e > s) {
-    temp.push({ date: visitDate.value, totalKm: e - s });
-  }
-  calculateRunningKm(temp);
-}
-
-function calculateRunningKm(data) {
-  let month = todayStr.slice(0,7);
-  let todayTotal = 0;
-  let monthTotal = 0;
-
-  data.forEach(v => {
-    if (v.date === todayStr) todayTotal += Number(v.totalKm);
-    if (v.date.startsWith(month)) monthTotal += Number(v.totalKm);
-  });
-
-  todayKm.value = "Today: " + todayTotal + " KM";
-  monthKm.value = "Month: " + monthTotal + " KM";
-}
-
-/* ---------------- SAVE ---------------- */
-function saveVisit() {
-
-if (!latitude.value || !longitude.value) {
-  alert("Please capture GPS location");
-  return;
-}
-
-  if (!visitDate.value) {
-    alert("Visit Date is mandatory");
-    return;
-  }
-
-
-  if (!dayPlan.value.trim()) {
-    alert("Day Plan / Visits is mandatory");
-    return;
-  }
-
-  if (!startOdo.value || !endOdo.value) {
-    alert("Please enter odometer readings");
-    return;
-  }
-
-  if (Number(endOdo.value) <= Number(startOdo.value)) {
-    alert("End Odometer must be greater than Start Odometer");
-    return;
-  }
-
-  let data = {
-  date: visitDate.value,
-  visitType: visitType.value,
-  startOdo: Number(startOdo.value),
-  endOdo: Number(endOdo.value),
-  totalKm: Number(totalKm.value),
-  dayPlan: dayPlan.value,
-  latitude: latitude.value,
-  longitude: longitude.value
-};
-
-
-  if (editIndex !== null) {
-    visits[editIndex] = data;
-    editIndex = null;
-  } else {
-    visits.push(data);
-  }
-
-  localStorage.setItem("visits", JSON.stringify(visits));
-  localStorage.setItem("lastEndOdo", data.endOdo);
-
-  endOdo.value = "";
-  totalKm.value = "";
-  dayPlan.value = "";
-
-  updateTable();
-  calculateRunningKm(visits);
-
-  alert("Visit saved successfully");
-}
-
-/* ---------------- TABLE ---------------- */
-function updateTable() {
-  let table = document.getElementById("dataTable");
-  table.innerHTML = `
-    <tr>
-      <th>Date</th>
-      <th>Type</th>
-      <th>KM</th>
-      <th>Edit</th>
-    </tr>`;
-
-  visits.forEach((v, i) => {
-    table.innerHTML += `
-      <tr>
-        <td>${v.date}</td>
-        <td>${v.visitType}</td>
-        <td>${v.totalKm}</td>
-        <td>
-          <button class="small-btn" onclick="editVisit(${i})">Edit</button>
-        </td>
-      </tr>`;
-  });
-}
-
-function editVisit(i) {
-  let v = visits[i];
-  visitDate.value = v.date;
-  visitType.value = v.visitType;
-  startOdo.value = v.startOdo;
-  endOdo.value = v.endOdo;
-  totalKm.value = v.totalKm;
-  dayPlan.value = v.dayPlan;
-  editIndex = i;
-  liveCalc();
-latitude.value = v.latitude || "";
-longitude.value = v.longitude || "";
-
-}
-
-/* ---------------- EXPORT ---------------- */
-function exportData() {
-  if (!fromDate.value || !toDate.value) {
-    alert("Please select date range");
-    return;
-  }
-
-let csv = "Date,Type,Start,End,KM,Day Plan / Visits,Latitude,Longitude\n";
-
-  visits
-    .filter(v => v.date >= fromDate.value && v.date <= toDate.value)
-    .forEach(v => {
-csv += `${v.date},${v.visitType},${v.startOdo},${v.endOdo},${v.totalKm},"${v.dayPlan}",${v.latitude},${v.longitude}\n`;
-    });
-
-  let blob = new Blob([csv], { type: "text/csv" });
-  let link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "MyMileage.csv";
-  link.click();
-}
-
-/* ---------------- SERVICE WORKER ---------------- */
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js");
-}
-
-/* INIT */
-
-// Auto capture GPS on load
-setTimeout(getLocation, 1000);
-
-updateTable();
-calculateRunningKm(visits);
-
-function getLocation() {
-  if (!navigator.geolocation) {
-    alert("GPS not supported on this device");
-    return;
-  }
-
+/* ================= GPS (silent) ================= */
+let gpsLat="", gpsLng="";
+function captureGPS() {
+  if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(
-    position => {
-      latitude.value = position.coords.latitude.toFixed(6);
-      longitude.value = position.coords.longitude.toFixed(6);
-    },
-    error => {
-      alert("Unable to fetch GPS location. Please allow location access.");
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0
+    p => {
+      gpsLat = p.coords.latitude.toFixed(6);
+      gpsLng = p.coords.longitude.toFixed(6);
     }
   );
 }
+setTimeout(captureGPS, 1000);
 
+/* ================= MISSED VISIT ALERT ================= */
+let y = new Date(); y.setDate(y.getDate()-1);
+let yDate = y.toISOString().split("T")[0];
+if (visits.find(v => v.date===yDate && !v.endOdo)) {
+  document.getElementById("missedAlert").style.display="block";
+}
+
+/* ================= INIT ================= */
+startOdo.value = localStorage.getItem("lastEndOdo") || "";
+if (todayVisit) {
+  startOdo.value = todayVisit.startOdo;
+  endOdo.value = todayVisit.endOdo || "";
+  totalKm.value = todayVisit.totalKm || "";
+  dayPlan.value = todayVisit.dayPlan;
+}
+updateButton();
+updateTable();
+updateRunningKm();
+
+/* ================= BUTTON STATE ================= */
+function updateButton() {
+  if (!todayVisit) actionBtn.innerText="Start Visit";
+  else if (!todayVisit.endOdo) actionBtn.innerText="End Visit";
+  else { actionBtn.innerText="Visit Completed"; actionBtn.disabled=true; }
+}
+
+/* ================= MAIN LOGIC ================= */
+function handleVisit() {
+
+  if (!dayPlan.value.trim()) {
+    alert("Day Plan / Visits is mandatory"); return;
+  }
+
+  if (!gpsLat || !gpsLng) {
+    alert("Allow GPS location"); captureGPS(); return;
+  }
+
+  /* START */
+  if (!todayVisit) {
+    if (!startOdo.value) { alert("Enter Start Odometer"); return; }
+
+    todayVisit = {
+      date: today,
+      visitType: visitType.value,
+      dayPlan: dayPlan.value,
+      startOdo: Number(startOdo.value),
+      startTime: new Date().toLocaleTimeString(),
+      startLat: gpsLat,
+      startLng: gpsLng,
+      endOdo:"",
+      endTime:"",
+      endLat:"",
+      endLng:"",
+      totalKm:""
+    };
+    visits.push(todayVisit);
+    localStorage.setItem("visits", JSON.stringify(visits));
+    alert("Start Visit saved");
+  }
+
+  /* END */
+  else if (!todayVisit.endOdo) {
+    if (!endOdo.value) { alert("Enter End Odometer"); return; }
+    if (Number(endOdo.value) <= todayVisit.startOdo) {
+      alert("End Odometer must be greater"); return;
+    }
+
+    todayVisit.endOdo = Number(endOdo.value);
+    todayVisit.endTime = new Date().toLocaleTimeString();
+    todayVisit.endLat = gpsLat;
+    todayVisit.endLng = gpsLng;
+    todayVisit.totalKm = todayVisit.endOdo - todayVisit.startOdo;
+
+    totalKm.value = todayVisit.totalKm;
+    localStorage.setItem("lastEndOdo", todayVisit.endOdo);
+    localStorage.setItem("visits", JSON.stringify(visits));
+    alert("End Visit saved");
+  }
+
+  updateButton();
+  updateTable();
+  updateRunningKm();
+}
+
+/* ================= TABLE ================= */
+function updateTable() {
+  let t = document.getElementById("dataTable");
+  t.innerHTML = `<tr><th>Date</th><th>Type</th><th>KM</th><th>Map</th></tr>`;
+  visits.forEach(v=>{
+    let map = (v.startLat && v.endLat)
+      ? `<a href="https://www.google.com/maps/dir/${v.startLat},${v.startLng}/${v.endLat},${v.endLng}" target="_blank">Route</a>`
+      : "-";
+    t.innerHTML += `<tr>
+      <td>${v.date}</td>
+      <td>${v.visitType}</td>
+      <td>${v.totalKm || "-"}</td>
+      <td>${map}</td>
+    </tr>`;
+  });
+}
+
+/* ================= RUNNING KM ================= */
+function updateRunningKm() {
+  let dayKm = 0, monthKm = 0;
+  let month = today.slice(0,7);
+
+  visits.forEach(v=>{
+    if (v.date === today && v.totalKm) dayKm += Number(v.totalKm);
+    if (v.date.startsWith(month) && v.totalKm) monthKm += Number(v.totalKm);
+  });
+
+  document.getElementById("runningKm").innerText =
+    `Day: ${dayKm} KM | Month: ${monthKm} KM`;
+}
+
+/* ================= EXPORT ================= */
+function exportCSV() {
+  if (!fromDate.value || !toDate.value) {
+    alert("Select date range"); return;
+  }
+  let csv = "Date,Type,StartOdo,EndOdo,KM,StartTime,EndTime,DayPlan\n";
+  visits.filter(v=>v.date>=fromDate.value && v.date<=toDate.value)
+    .forEach(v=>{
+      csv += `${v.date},${v.visitType},${v.startOdo},${v.endOdo},${v.totalKm},${v.startTime},${v.endTime},"${v.dayPlan}"\n`;
+    });
+  let blob = new Blob([csv],{type:"text/csv"});
+  let a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="MyMileage.csv";
+  a.click();
+}
+
+/* ================= SERVICE WORKER ================= */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
 </script>
 
 </body>
