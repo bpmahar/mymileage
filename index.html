@@ -48,7 +48,7 @@ input[readonly] {
   display: flex;
   gap: 6px;
 }
-.row input {
+.row input, .row select {
   flex: 1;
   text-align: center;
   font-weight: bold;
@@ -83,14 +83,15 @@ th, td {
 <div class="container">
 <h2>My Mileage</h2>
 
-<label>Visit Date *</label>
-<input type="date" id="visitDate" required>
-
-<label>Visit Type</label>
-<select id="visitType">
-  <option>Official</option>
-  <option>Personal</option>
-</select>
+<!-- Visit Date + Visit Type (Same Row) -->
+<label>Visit Details *</label>
+<div class="row">
+  <input type="date" id="visitDate" required>
+  <select id="visitType">
+    <option>Official</option>
+    <option>Personal</option>
+  </select>
+</div>
 
 <label>Odometer Readings</label>
 <div class="row">
@@ -105,8 +106,9 @@ th, td {
   <input type="text" id="monthKm" readonly placeholder="Month KM">
 </div>
 
-<label>Visit Customer / RO</label>
-<textarea id="customer" rows="2"></textarea>
+<!-- Day Plan / Visits (Mandatory) -->
+<label>Day Plan / Visits *</label>
+<textarea id="dayPlan" rows="2" placeholder="Planned / visited customers or locations"></textarea>
 
 <label>Upload Picture (Optional)</label>
 <input type="file" accept="image/*">
@@ -185,6 +187,11 @@ function saveVisit() {
     return;
   }
 
+  if (!dayPlan.value.trim()) {
+    alert("Day Plan / Visits is mandatory");
+    return;
+  }
+
   if (!startOdo.value || !endOdo.value) {
     alert("Please enter odometer readings");
     return;
@@ -201,7 +208,7 @@ function saveVisit() {
     startOdo: Number(startOdo.value),
     endOdo: Number(endOdo.value),
     totalKm: Number(totalKm.value),
-    customer: customer.value
+    dayPlan: dayPlan.value
   };
 
   if (editIndex !== null) {
@@ -216,7 +223,7 @@ function saveVisit() {
 
   endOdo.value = "";
   totalKm.value = "";
-  customer.value = "";
+  dayPlan.value = "";
 
   updateTable();
   calculateRunningKm(visits);
@@ -255,7 +262,7 @@ function editVisit(i) {
   startOdo.value = v.startOdo;
   endOdo.value = v.endOdo;
   totalKm.value = v.totalKm;
-  customer.value = v.customer;
+  dayPlan.value = v.dayPlan;
   editIndex = i;
   liveCalc();
 }
@@ -267,12 +274,12 @@ function exportData() {
     return;
   }
 
-  let csv = "Date,Type,Start,End,KM,Customer\n";
+  let csv = "Date,Type,Start,End,KM,Day Plan / Visits\n";
 
   visits
     .filter(v => v.date >= fromDate.value && v.date <= toDate.value)
     .forEach(v => {
-      csv += `${v.date},${v.visitType},${v.startOdo},${v.endOdo},${v.totalKm},${v.customer}\n`;
+      csv += `${v.date},${v.visitType},${v.startOdo},${v.endOdo},${v.totalKm},"${v.dayPlan}"\n`;
     });
 
   let blob = new Blob([csv], { type: "text/csv" });
