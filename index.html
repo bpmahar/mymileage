@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Mileage</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#007bff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="My Mileage">
+<link rel="apple-touch-icon" href="icon.png">
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+  padding: 10px;
+}
+.container {
+  background: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  max-width: 480px;
+  margin: auto;
+}
+h2 {
+  text-align: center;
+  margin-bottom: 10px;
+}
+label {
+  font-weight: bold;
+  margin-top: 10px;
+  display: block;
+}
+input, select, textarea, button {
+  width: 100%;
+  padding: 9px;
+  margin-top: 5px;
+  font-size: 15px;
+}
+input[readonly] {
+  background: #eee;
+}
+.row {
+  display: flex;
+  gap: 6px;
+}
+.row input {
+  flex: 1;
+  text-align: center;
+  font-weight: bold;
+}
+button {
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  margin-top: 12px;
+}
+table {
+  width: 100%;
+  font-size: 13px;
+  margin-top: 10px;
+  border-collapse: collapse;
+}
+th, td {
+  border: 1px solid #ccc;
+  padding: 5px;
+  text-align: center;
+}
+.small-btn {
+  font-size: 12px;
+  padding: 4px 6px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+<h2>My Mileage</h2>
+
+<label>Visit Date *</label>
+<input type="date" id="visitDate" required>
+
+<label>Visit Type</label>
+<select id="visitType">
+  <option>Official</option>
+  <option>Personal</option>
+</select>
+
+<label>Odometer Readings</label>
+<div class="row">
+  <input type="number" id="startOdo" placeholder="Start Odometer">
+  <input type="number" id="endOdo" placeholder="End Odometer">
+</div>
+
+<label>Total / Running KM</label>
+<div class="row">
+  <input type="number" id="totalKm" readonly placeholder="Trip KM">
+  <input type="text" id="todayKm" readonly placeholder="Today KM">
+  <input type="text" id="monthKm" readonly placeholder="Month KM">
+</div>
+
+<label>Visit Customer / RO</label>
+<textarea id="customer" rows="2"></textarea>
+
+<label>Upload Picture (Optional)</label>
+<input type="file" accept="image/*">
+
+<button onclick="saveVisit()">Save Visit</button>
+
+<hr>
+
+<h3>Saved Visits</h3>
+<table id="dataTable">
+<tr>
+<th>Date</th>
+<th>Type</th>
+<th>KM</th>
+<th>Edit</th>
+</tr>
+</table>
+
+<hr>
+
+<h3>Export Data</h3>
+<input type="date" id="fromDate">
+<input type="date" id="toDate">
+<button onclick="exportData()">Export CSV</button>
+
+</div>
+
+<script>
+/* ---------------- DATA ---------------- */
+let visits = JSON.parse(localStorage.getItem("visits")) || [];
+let editIndex = null;
+
+/* Default date = today */
+const todayStr = new Date().toISOString().split("T")[0];
+visitDate.value = todayStr;
+
+/* Load last end odometer */
+startOdo.value = localStorage.getItem("lastEndOdo") || "";
+
+/* ---------------- LIVE CALC ---------------- */
+endOdo.addEventListener("input", liveCalc);
+visitDate.addEventListener("change", liveCalc);
+
+function liveCalc() {
+  let s = Number(startOdo.value);
+  let e = Number(endOdo.value);
+
+  totalKm.value = (e > s) ? (e - s) : "";
+
+  let temp = [...visits];
+  if (visitDate.value && e > s) {
+    temp.push({ date: visitDate.value, totalKm: e - s });
+  }
+  calculateRunningKm(temp);
+}
+
+function calculateRunningKm(data) {
+  let month = todayStr.slice(0,7);
+  let todayTotal = 0;
+  let monthTotal = 0;
+
+  data.forEach(v => {
+    if (v.date === todayStr) todayTotal += Number(v.totalKm);
+    if (v.date.startsWith(month)) monthTotal += Number(v.totalKm);
+  });
+
+  todayKm.value = "Today: " + todayTotal + " KM";
+  monthKm.value = "Month: " + monthTotal + " KM";
+}
+
+/* ---------------- SAVE ---------------- */
+function saveVisit() {
+
+  if (!visitDate.value) {
+    alert("Visit Date is mandatory");
+    return;
+  }
+
+  if (!startOdo.value || !endOdo.value) {
+    alert("Please enter odometer readings");
+    return;
+  }
+
+  if (Number(endOdo.value) <= Number(startOdo.value)) {
+    alert("End Odometer must be greater than Start Odometer");
+    return;
+  }
+
+  let data = {
+    date: visitDate.value,
+    visitType: visitType.value,
+    startOdo: Number(startOdo.value),
+    endOdo: Number(endOdo.value),
+    totalKm: Number(totalKm.value),
+    customer: customer.value
+  };
+
+  if (editIndex !== null) {
+    visits[editIndex] = data;
+    editIndex = null;
+  } else {
+    visits.push(data);
+  }
+
+  localStorage.setItem("visits", JSON.stringify(visits));
+  localStorage.setItem("lastEndOdo", data.endOdo);
+
+  endOdo.value = "";
+  totalKm.value = "";
+  customer.value = "";
+
+  updateTable();
+  calculateRunningKm(visits);
+
+  alert("Visit saved successfully");
+}
+
+/* ---------------- TABLE ---------------- */
+function updateTable() {
+  let table = document.getElementById("dataTable");
+  table.innerHTML = `
+    <tr>
+      <th>Date</th>
+      <th>Type</th>
+      <th>KM</th>
+      <th>Edit</th>
+    </tr>`;
+
+  visits.forEach((v, i) => {
+    table.innerHTML += `
+      <tr>
+        <td>${v.date}</td>
+        <td>${v.visitType}</td>
+        <td>${v.totalKm}</td>
+        <td>
+          <button class="small-btn" onclick="editVisit(${i})">Edit</button>
+        </td>
+      </tr>`;
+  });
+}
+
+function editVisit(i) {
+  let v = visits[i];
+  visitDate.value = v.date;
+  visitType.value = v.visitType;
+  startOdo.value = v.startOdo;
+  endOdo.value = v.endOdo;
+  totalKm.value = v.totalKm;
+  customer.value = v.customer;
+  editIndex = i;
+  liveCalc();
+}
+
+/* ---------------- EXPORT ---------------- */
+function exportData() {
+  if (!fromDate.value || !toDate.value) {
+    alert("Please select date range");
+    return;
+  }
+
+  let csv = "Date,Type,Start,End,KM,Customer\n";
+
+  visits
+    .filter(v => v.date >= fromDate.value && v.date <= toDate.value)
+    .forEach(v => {
+      csv += `${v.date},${v.visitType},${v.startOdo},${v.endOdo},${v.totalKm},${v.customer}\n`;
+    });
+
+  let blob = new Blob([csv], { type: "text/csv" });
+  let link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "MyMileage.csv";
+  link.click();
+}
+
+/* ---------------- SERVICE WORKER ---------------- */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js");
+}
+
+/* INIT */
+updateTable();
+calculateRunningKm(visits);
+</script>
+
+</body>
+</html>
