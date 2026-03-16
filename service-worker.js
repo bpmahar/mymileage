@@ -1,4 +1,4 @@
-const CACHE_NAME = "my-mileage-v1";
+const CACHE_NAME = "my-mileage-v2";
 
 const FILES_TO_CACHE = [
   "./",
