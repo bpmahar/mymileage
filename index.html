@@ -408,9 +408,46 @@ function exportCSV() {
 }
 
 /* ================= SERVICE WORKER ================= */
+let newWorker;
+
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("service-worker.js");
+
+  navigator.serviceWorker.register("service-worker.js")
+  .then(reg => {
+
+    if (reg.waiting) {
+      showUpdate();
+    }
+
+    reg.addEventListener("updatefound", () => {
+
+      newWorker = reg.installing;
+
+      newWorker.addEventListener("statechange", () => {
+
+        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          showUpdate();
+        }
+
+      });
+
+    });
+
+  });
+
 }
+
+function showUpdate(){
+  document.getElementById("updateBox").style.display="block";
+}
+
+function updateApp(){
+  if(newWorker){
+    newWorker.postMessage("SKIP_WAITING");
+  }
+  window.location.reload();
+}
+  
 </script>
 <div id="updateBox" style="
 display:none;
