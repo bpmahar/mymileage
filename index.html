@@ -447,6 +447,10 @@ function updateApp(){
   }
   window.location.reload();
 }
+
+navigator.serviceWorker.addEventListener("controllerchange", () => {
+  window.location.reload();
+});
   
 </script>
 <div id="updateBox" style="
